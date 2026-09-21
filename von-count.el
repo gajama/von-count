@@ -110,35 +110,36 @@ display it."
       (von-count--bar-setup (von-count--bar-get-length)))
     (von-count--bar-display-buffer)
     (add-hook 'after-change-functions #'von-count-after-change-function 0 t)
-    (add-hook 'window-buffer-change-functions #'von-count-window-buffer-change-function)
- ;;   (add-hook 'buffer-list-update-hook #'von-count-refresh-bar-buffer-window 0 t)
+    (add-hook 'window-configuration-change-hook #'von-count-window-buffer-change-function 0 t)
+    (add-hook 'window-buffer-change-functions #'von-count-window-buffer-change-function 0 t)
    (add-hook 'kill-buffer-hook #'von-count-killed-remove-bar-buffer 0 t)))
 
-(defun von-count--bar-display-buffer ()
-  (von-count-with-parent-buffer
-   (let ((window (von-count--bar-buffer-window)))
-     ;; Do we have a live window?
-     (if (window-live-p window)
-         ;; Correct buffer? Do nothing.
-         (or (eq (window-buffer window) von-count-bar-buffer)
-             ;; Otherwise show the bar buffer
-             (set-window-buffer window von-count-bar-buffer))
-       ;; No window. We need to create one.
-       ;; First clean up anything that's gone wrong.
-       (von-count--delete-bar-buffer-window)
-       ;; Create the window
-       (let ((display-buffer-alist
-              `((t
-                 (display-buffer-in-atom-window)
-                 (window .  ,(selected-window))
-                 (window-height .  (body-lines .  2))
-                 (preserve-size .  (nil .  t))
-                 (reusable-frames .  visible)
-                 (dedicated .  t)
-                 (window-parameters (no-other-window .  t)
-                                    (delete-window .  t)
-                                    (no-delete-other-window .  t))))))
-         (setq window (display-buffer von-count-bar-buffer))
+(defun von-count--bar-display-buffer (&optional parent)
+  (with-selected-window (or parent)
+    (von-count-with-parent-buffer
+     (let ((window (von-count--bar-buffer-window)))
+       ;; Do we have a live window?
+       (if (and window (window-live-p window))
+           ;; Correct buffer? Do nothing.
+           (or (eq (window-buffer window) von-count-bar-buffer)
+               ;; Otherwise show the bar buffer
+               (set-window-buffer window von-count-bar-buffer))
+         ;; No window. We need to create one.
+         ;; First clean up anything that's gone wrong.
+         (von-count--delete-bar-buffer-window)
+         ;; Create the window
+         (let ((display-buffer-alist
+                `((t
+                   (display-buffer-in-atom-window)
+                   (window .  ,(selected-window))
+                   (window-height .  (body-lines .  2))
+                   (preserve-size .  (nil .  t))
+                   (reusable-frames .  visible)
+                   (dedicated .  t)
+                   (window-parameters (no-other-window .  t)
+                                      (delete-window .  t)
+                                      (no-delete-other-window .  t))))))
+           (setq window (display-buffer von-count-bar-buffer)))
          ;; Set our window parameter on the parent to the bar window
          (set-window-parameter (selected-window) 'von-count-bar-buffer-window window)
          ;; redraw the bar if we need to.
@@ -178,7 +179,6 @@ used its length should be the same as the value of BAR-LENGTH."
         (bar-length (+ start bar-length))
         (done-pos (min (+ start done-pos) bar-length))
         (inhibit-read-only t))
-     (message "Here")
      (set-text-properties done-pos  bar-length
                           `(face (von-count-bar (:foreground ,von-count-todo-color))) bar)
      (and (> (von-count--bar-get-done-pos) 0)
@@ -208,11 +208,15 @@ This is the character position that corresponds to the proportion of
      (setq-local von-count-bar-done-pos (/ (* 1000 (von-count-get-delta)) worked)))))
 
 (defun von-count--bar-buffer-window ()
+  (interactive)
   (von-count-with-parent-buffer
    (if-let* ((window
-              (window-parameter (selected-window) 'von-count-bar-buffer-window)))
-       (and (window-live-p window)
-            window))))
+              (window-parameter (selected-window) 'von-count-bar-buffer-window))
+             (_ (message "Window:" window)))
+       (and
+        (message "%s" window)
+        (window-live-p window)
+             window))))
 
 (defun von-count-clean-up ()
   "Remove Von Count bar window, kill bar buffer and clean up."
@@ -221,8 +225,8 @@ This is the character position that corresponds to the proportion of
   (von-count-with-parent-buffer
    (remove-hook 'after-change-functions #'von-count-after-change-function t)
    (remove-hook 'kill-buffer-hook #'von-count-killed-remove-bar-buffer t)
-   (remove-hook 'window-buffer-change-functions #'von-count-window-buffer-change-function)   
-   (remove-hook 'buffer-list-update-hook #'von-count-refresh-bar-buffer-window t)
+   (remove-hook 'window-buffer-change-functions #'von-count-window-buffer-change-function t)   
+    (remove-hook 'window-configuration-change-hook #'von-count-window-buffer-change-function t)
    (when (and von-count-bar-buffer (buffer-live-p von-count-bar-buffer))
      (von-count--delete-bar-buffer-window)
      (kill-buffer von-count-bar-buffer)
@@ -251,12 +255,11 @@ between point-min and point."
   (and von-count-mode
        (setq-local von-count-bar-buffer nil)))
 
-(defun von-count-window-buffer-change-function (frame-or-window)
-  (if von-count-mode (von-count--bar-display-buffer)
-        (with-current-buffer (window-old-buffer)
-          (and von-count-mode
-             (message "Ch..ch..changes...")
-                   (von-count--delete-bar-buffer-window)))))
+(defun von-count-window-buffer-change-function (window-or-frame)
+  (with-current-buffer (window-buffer)
+    (if von-count-mode (von-count--bar-display-buffer window-or-frame)
+      (if (window-parameter (selected-window) 'von-count-bar-buffer-window)
+          (von-count--delete-bar-buffer-window)))))
 
 (defun von-count-killed-remove-bar-buffer ()
   "If this buffer is parent of a Von Count bar buffer, remove the bar
@@ -268,8 +271,8 @@ buffer if this buffer is killed."
   (interactive)
   (if-let* ((window (von-count--bar-buffer-window))
             (buffer von-count-bar-buffer))
-      (set-window-buffer window buffer)))
-;;    (and von-count-mode (von-count--bar-display-buffer))))
+      (set-window-buffer window buffer))
+    (and von-count-mode (von-count--bar-display-buffer)))
 
 (defmacro von-count-wrapper (parent-or-bar &rest body)
   "Wrapper that makes sure BODY is called in the correct buffer.
