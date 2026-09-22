@@ -283,9 +283,11 @@ in which buffer BODY is called."
   `(with-current-buffer (or (and ,which (current-buffer)) ,buf)
      ,@body)))
 
+;;;###autoload
 (defmacro von-count-with-bar-buffer (&rest body)
   `(von-count-wrapper bar ,@body))
 
+;;;###autoload
 (defmacro von-count-with-parent-buffer (&rest body)
   `(von-count-wrapper parent ,@body))
 
