@@ -271,6 +271,7 @@ buffer if this buffer is killed."
       (set-window-buffer window buffer))
     (and von-count-mode (von-count--bar-display-buffer)))
 
+;;;###autoload
 (defmacro von-count-wrapper (parent-or-bar &rest body)
   "Wrapper that makes sure BODY is called in the correct buffer.
 
@@ -283,11 +284,9 @@ in which buffer BODY is called."
   `(with-current-buffer (or (and ,which (current-buffer)) ,buf)
      ,@body)))
 
-;;;###autoload
 (defmacro von-count-with-bar-buffer (&rest body)
   `(von-count-wrapper bar ,@body))
 
-;;;###autoload
 (defmacro von-count-with-parent-buffer (&rest body)
   `(von-count-wrapper parent ,@body))
 
