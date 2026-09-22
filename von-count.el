@@ -99,7 +99,6 @@ display it."
                 von-count-word-count-delta 0
                 von-count-last-word-count-delta 0
                 von-count-initial-word-count (von-count--get-word-count pos))
-    (message "VC bar buffer: %s" von-count-bar-buffer)
     (with-current-buffer von-count-bar-buffer
       (setq-local von-count-parent-buffer parent-buffer 
                   von-count-is-bar t)
@@ -115,7 +114,7 @@ display it."
    (add-hook 'kill-buffer-hook #'von-count-killed-remove-bar-buffer 0 t)))
 
 (defun von-count--bar-display-buffer (&optional parent)
-  (with-selected-window (or parent)
+  (with-selected-window (or parent (selected-window))
     (von-count-with-parent-buffer
      (let ((window (von-count--bar-buffer-window)))
        ;; Do we have a live window?
@@ -211,10 +210,8 @@ This is the character position that corresponds to the proportion of
   (interactive)
   (von-count-with-parent-buffer
    (if-let* ((window
-              (window-parameter (selected-window) 'von-count-bar-buffer-window))
-             (_ (message "Window:" window)))
+              (window-parameter (selected-window) 'von-count-bar-buffer-window)))
        (and
-        (message "%s" window)
         (window-live-p window)
              window))))
 
@@ -255,7 +252,7 @@ between point-min and point."
   (and von-count-mode
        (setq-local von-count-bar-buffer nil)))
 
-(defun von-count-window-buffer-change-function (window-or-frame)
+(defun von-count-window-buffer-change-function (&optional window-or-frame)
   (with-current-buffer (window-buffer)
     (if von-count-mode (von-count--bar-display-buffer window-or-frame)
       (if (window-parameter (selected-window) 'von-count-bar-buffer-window)
