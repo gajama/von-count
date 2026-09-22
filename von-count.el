@@ -72,6 +72,29 @@ The position along the bar in proportion to the amount of
 (defvar-local von-count-is-bar nil
   "True in the Von Count bar buffer.")
 
+;;; Macros
+;; Macros need to be defined before first use, so put them at the start!
+
+(defmacro von-count-wrapper (parent-or-bar &rest body)
+  "Wrapper that makes sure BODY is called in the correct buffer.
+
+PARENT-OR-BAR should be one of either `'parent' or `bar', and specifies
+in which buffer BODY is called."
+  (let* ((sym (symbol-name parent-or-bar))
+         (which (intern-soft (concat "von-count-is-" sym)))
+         (buf (intern-soft (concat "von-count-" sym "-buffer"))))
+    
+  `(with-current-buffer (or (and ,which (current-buffer)) ,buf)
+     ,@body)))
+
+(defmacro von-count-with-bar-buffer (&rest body)
+  `(von-count-wrapper bar ,@body))
+
+(defmacro von-count-with-parent-buffer (&rest body)
+  `(von-count-wrapper parent ,@body))
+
+
+
 ;;; Start or resume
 
 (defun von-count-start (&optional pos clean)
@@ -270,25 +293,6 @@ buffer if this buffer is killed."
             (buffer von-count-bar-buffer))
       (set-window-buffer window buffer))
     (and von-count-mode (von-count--bar-display-buffer)))
-
-;;;###autoload
-(defmacro von-count-wrapper (parent-or-bar &rest body)
-  "Wrapper that makes sure BODY is called in the correct buffer.
-
-PARENT-OR-BAR should be one of either `'parent' or `bar', and specifies
-in which buffer BODY is called."
-  (let* ((sym (symbol-name parent-or-bar))
-         (which (intern-soft (concat "von-count-is-" sym)))
-         (buf (intern-soft (concat "von-count-" sym "-buffer"))))
-    
-  `(with-current-buffer (or (and ,which (current-buffer)) ,buf)
-     ,@body)))
-
-(defmacro von-count-with-bar-buffer (&rest body)
-  `(von-count-wrapper bar ,@body))
-
-(defmacro von-count-with-parent-buffer (&rest body)
-  `(von-count-wrapper parent ,@body))
 
 (defun von-count-after-change-function (beg end len)
   "if words have been added to the `von-count-parent-buffer', update the
